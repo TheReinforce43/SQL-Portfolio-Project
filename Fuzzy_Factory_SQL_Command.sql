@@ -86,6 +86,7 @@ ORDER BY 1 , 2 DESC;
 
 SELECT 
     MIN(DATE(created_at)) AS week_start,
+    MAX(DATE(created_at)) AS week_end,
     COUNT(DISTINCT website_session_id) AS sessions
 FROM
     mavenfuzzyfactory.website_sessions
@@ -95,6 +96,42 @@ WHERE
         AND utm_campaign = 'nonbrand'
 GROUP BY YEARWEEK(created_at);
 -- ORDER BY 2 DESC;
+
+-- 07. Gsearch device level performance 
+with cte as ( SELECT 
+    ws.device_type,
+    COUNT(DISTINCT website_session_id) AS sessions,
+    COUNT(DISTINCT order_id) AS orders
+FROM
+    mavenfuzzyfactory.website_sessions AS ws
+        LEFT JOIN
+    mavenfuzzyfactory.orders AS o USING (website_session_id)
+WHERE
+    LOWER(ws.utm_source) = 'gsearch'
+        AND ws.created_at < '2012-05-11'
+        and lower(ws.utm_campaign)='nonbrand'
+GROUP BY ws.device_type)
+select * , concat(round( (orders/sessions)*100  ,2),' %') as conversion_Rate from cte;
+
+-- 08. Gsearch device level trends
+SELECT 
+    MIN(DATE(created_at)) AS week_start,
+    COUNT(CASE
+        WHEN device_type = 'desktop' THEN website_session_id
+        ELSE NULL
+    END) AS dtop_sessions,
+    COUNT(CASE
+        WHEN device_type = 'mobile' THEN website_session_id
+        ELSE NULL
+    END) AS mob_sessions
+FROM
+    mavenfuzzyfactory.website_sessions
+WHERE
+    utm_campaign = 'nonbrand'
+        AND utm_source = 'gsearch'
+        AND created_at BETWEEN '2012-04-16' AND '2012-06-08'
+GROUP BY YEARWEEK(created_at);
+
 
 
 
