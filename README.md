@@ -1,2 +1,2 @@
 # SQL-Portfolio-Project
-Explatory Data Analysis with SQL
+Exploratory Data Analysis with SQL
