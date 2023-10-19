@@ -132,11 +132,106 @@ WHERE
         AND created_at BETWEEN '2012-04-16' AND '2012-06-08'
 GROUP BY YEARWEEK(created_at);
 
+-- 09. top  5 Website Pages sessions before 2012-06-09
+
+SELECT 
+    pageview_url, COUNT(DISTINCT website_session_id) AS sessions
+FROM
+    mavenfuzzyfactory.website_pageviews AS wp
+        LEFT JOIN
+    mavenfuzzyfactory.website_sessions AS ws USING (website_session_id)
+WHERE
+    ws.created_at < '2012-06-09'
+GROUP BY pageview_url
+ORDER BY sessions DESC
+LIMIT 5;
+
+-- 10. top 5 entry pages
+-- Step A) Find the first page views for each session via creating temporary table
+-- Step B) Find the URL the customer saw on the first pageview
+
+CREATE TEMPORARY TABLE first_page_views
+	SELECT 
+		website_session_id,
+		MIN(website_pageview_id) AS min_page_views
+	FROM mavenfuzzyfactory.website_pageviews
+	WHERE created_at<'2012-06-12'
+	GROUP BY website_session_id;
+
+SELECT 
+    wp.pageview_url AS landing_page,
+    COUNT(DISTINCT fpv.website_session_id) AS first_hitting_page
+FROM
+    first_page_views AS fpv
+        LEFT JOIN
+    website_pageviews AS wp ON fpv.min_page_views = wp.website_pageview_id
+GROUP BY 1;
+
+-- 11. Find the landing page performance in a certain period of time in january,2014
+
+-- Steps: 
+-- A) Find the first website_pageview_id for relevant sessions
+-- B) Indentifying the landing page of each sessions
+-- C) Counting pageviews for each sessions, to identify "bounces"
+-- D) Summarizing total sessions and bounced sessions by Landing Pages/Entry Pages
+
+DROP TABLE  IF EXISTS first_page_views;
+
+create temporary table first_page_views
+SELECT 
+    ws.website_session_id,
+    MIN(wp.website_pageview_id) AS min_web_pageview_id
+FROM
+    mavenfuzzyfactory.website_sessions AS ws
+        JOIN
+    mavenfuzzyfactory.website_pageviews AS wp USING (website_session_id)
+WHERE
+    ws.created_at BETWEEN '2014-01-01' AND '2014-01-31'
+GROUP BY ws.website_session_id;  
+
+drop table if exists session_with_landing_page;
+create temporary table session_with_landing_page
+SELECT 
+    fpv.website_session_id,
+    wp.pageview_url AS landing_page
+FROM
+    first_page_views AS fpv
+        LEFT JOIN
+    mavenfuzzyfactory.website_pageviews AS wp ON fpv.min_web_pageview_id = wp.website_pageview_id;
+
+drop table if exists bounced_sessions;
+create temporary table  bounced_sessions
+SELECT 
+    swld.website_session_id,
+    swld.landing_page,
+    COUNT(wp.website_pageview_id) AS count_page_viewed
+FROM
+    session_with_landing_page AS swld
+        LEFT JOIN
+    mavenfuzzyfactory.website_pageviews AS wp USING (website_session_id)
+GROUP BY 1 , 2
+HAVING COUNT(wp.website_pageview_id) = 1;
+    
 
 
 
- 
- 
+
+-- Final Output
+ with cte as (SELECT 
+    swld.landing_page,
+    COUNT(swld.website_session_id) AS sessions,
+    COUNT(bs.website_session_id) AS bounced_sessions
+FROM
+    session_with_landing_page AS swld
+        LEFT JOIN
+    bounced_sessions AS bs USING (website_session_id)
+GROUP BY 1)
+SELECT 
+    *,
+    CONCAT(ROUND((bounced_sessions / sessions) * 100, 2),
+            '%') AS bounced_percentage
+FROM
+    cte;
  
  
  
